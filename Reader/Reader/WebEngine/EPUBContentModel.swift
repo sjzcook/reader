@@ -34,7 +34,7 @@ final class EPUBContentModel {
 
     // MARK: - 构造
 
-    init?(directory: URL) {
+    convenience init?(directory: URL) {
         guard let document = EPUBDocument(url: directory) else { return nil }
         self.init(document: document)
     }
@@ -76,7 +76,7 @@ final class EPUBContentModel {
         self.indexByHref = indexByHref
         self.title = document.title ?? ""
         self.author = document.author ?? ""
-        self.language = document.language ?? ""
+        self.language = document.metadata.language ?? ""
         self.pageProgressionRTL = document.spine.pageProgressionDirection == .rightToLeft
 
         // 构造目录条目：优先用 NCX，解析不到就退化为脊顺序
