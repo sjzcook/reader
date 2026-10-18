@@ -48,7 +48,7 @@ targets:
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.reader
+        PRODUCT_BUNDLE_IDENTIFIER: com.sjzcook.modureader
         PRODUCT_NAME: ModuReader
         INFOPLIST_FILE: Reader/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: Reader/Resources/Reader.entitlements
@@ -110,7 +110,7 @@ targets:
           - "*.entitlements"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.reader.share
+        PRODUCT_BUNDLE_IDENTIFIER: com.sjzcook.modureader.share
         PRODUCT_NAME: ModuShare
         INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements

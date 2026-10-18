@@ -215,7 +215,7 @@ final class ShareViewController: UIViewController {
 
 /// 主 App 与扩展必须保持一致
 enum AppGroup {
-    static let identifier = "group.com.example.reader"
+    static let identifier = "group.com.sjzcook.modureader"
 }
 
 enum ShareExtensionError: LocalizedError {

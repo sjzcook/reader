@@ -4,7 +4,7 @@ extension FileManager {
 
     /// App 与 Share Extension 共享的容器目录。
     /// 两者必须在 Xcode 中配置同一个 App Group，否则扩展写进去的文件主 App 看不到。
-    static let appGroupIdentifier = "group.com.example.reader"
+    static let appGroupIdentifier = "group.com.sjzcook.modureader"
 
     /// 共享容器根目录；未配置 App Group 时回退到 App 沙盒的 Documents。
     static var containerURL: URL {

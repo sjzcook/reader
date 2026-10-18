@@ -68,11 +68,9 @@ open Reader.xcodeproj
 
 1. 选中 `Reader` 和 `ShareExtension` 两个 target → Signing & Capabilities →
    勾选 **Automatically manage signing** 并选择你的 **Team**。
-2. 确认两个 target 的 **App Groups** capability 里都有 `group.com.example.reader`
-   （entitlements 文件已带好，通常 Xcode 会自动注册到开发者账号；真机调试前需要在
-   开发者后台把该 App Group 添加到你的 Team）。
-3. 想改 bundle id / App Group：改 `project.yml` 与两个 `*.entitlements` 后重新
-   `xcodegen generate`。
+2. 确认两个 target 的 **App Groups** capability 里都有 `group.com.sjzcook.modureader`
+   （当前工程使用 group.com.sjzcook.modureader；必须先在 Apple Developer → Certificates, Identifiers & Profiles → Identifiers 中创建该 App Group，并为 App ID 启用 App Groups。未签名 IPA 本身不能授予此权限，最终重新签名时也必须包含该组的 entitlement）。
+3. 当前 Bundle ID：`com.sjzcook.modureader`（主 App）、`com.sjzcook.modureader.share`（分享扩展）；App Group：`group.com.sjzcook.modureader`。如使用自己的 Apple Developer Team，请在开发者后台注册对应 App IDs 和 App Group，并确保签名配置授权此 App Group。改标识符后需要重新生成并构建，已安装应用可能会被视为另一款应用。
 
 依赖（Readium、EPUBKit）通过 Swift Package Manager 在首次构建时自动拉取。
 
