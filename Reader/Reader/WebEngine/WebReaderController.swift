@@ -193,7 +193,7 @@ final class WebReaderController: UIViewController {
     /// 章节加载完成后，按「内容宽度 / 屏宽」算出页数，
     /// 把 WebView 与 strip 一起撑到「页数 × 屏宽」。
     private func updateStripContentSize() {
-        guard let web else { return }
+        guard let web = webView else { return }
         let viewport = max(view.bounds.width, 1)
         let height = max(view.bounds.height, 1)
         let layoutWidth = web.scrollView.contentSize.width
