@@ -63,20 +63,21 @@ final class ReadiumEngine {
     }
 
     /// 章节目录（层级扁平化，便于侧边栏列表展示）
-    func tableOfContents(for publication: Publication) -> [TOCEntry] {
+    func tableOfContents(for publication: Publication) async -> [TOCEntry] {
         func walk(_ links: [ReadiumShared.Link], level: Int) -> [TOCEntry] {
             links.flatMap { link -> [TOCEntry] in
                 let entry = TOCEntry(
-                    id: "\(level)-\(link.href.string)-\(link.title ?? "")",
+                    id: "\(level)-\(String(describing: link.href))-\(link.title ?? "")",
                     title: link.title?.trimmed.nonEmpty ?? "未命名章节",
-                    href: link.href.string,
+                    href: String(describing: link.href),
                     level: level,
                     link: link
                 )
                 return [entry] + walk(link.children, level: level + 1)
             }
         }
-        return walk(publication.tableOfContents, level: 0)
+        guard let links = try? await publication.tableOfContents().get() else { return [] }
+        return walk(links, level: 0)
     }
 
     /// 恢复上次阅读位置。
@@ -98,7 +99,7 @@ final class ReadiumEngine {
 
     /// 定位 Locator 对应的章节目录项（用于工具栏显示章节名）
     func title(for locator: Locator, in toc: [TOCEntry]) -> String? {
-        let href = locator.href.string
+        let href = String(describing: locator.href)
         return toc.first { entry in
             href.hasSuffix(entry.href) || entry.href.hasSuffix(href)
         }?.title
