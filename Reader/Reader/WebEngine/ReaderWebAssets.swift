@@ -198,7 +198,7 @@ enum ReaderWebAssets {
     }
 
     /// 把 Swift 可选字符串转成可安全嵌入 JS 的字面量。
-    private static func jsLiteral(_ value: String?) -> String {
+    static func jsLiteral(_ value: String?) -> String {
         guard let value else { return "null" }
         var escaped = ""
         for character in value {
