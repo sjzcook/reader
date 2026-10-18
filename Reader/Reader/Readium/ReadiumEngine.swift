@@ -64,7 +64,7 @@ final class ReadiumEngine {
 
     /// 章节目录（层级扁平化，便于侧边栏列表展示）
     func tableOfContents(for publication: Publication) -> [TOCEntry] {
-        func walk(_ links: [Link], level: Int) -> [TOCEntry] {
+        func walk(_ links: [ReadiumShared.Link], level: Int) -> [TOCEntry] {
             links.flatMap { link -> [TOCEntry] in
                 let entry = TOCEntry(
                     id: "\(level)-\(link.href.string)-\(link.title ?? "")",
@@ -129,14 +129,14 @@ final class ReadiumEngine {
         // Readium 的 Color 只接受不带 # 的十六进制或 UIColor，这里统一走 UIColor。
         switch appearance.theme {
         case .light:
-            prefs.backgroundColor = SwiftUI.Color(uiColor: UIColor.white)
-            prefs.textColor = SwiftUI.Color(uiColor: UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1))
+            prefs.backgroundColor = ReadiumNavigator.Color(hex: "#FFFFFF")!
+            prefs.textColor = ReadiumNavigator.Color(hex: "#1C1C1F")!
         case .sepia:
-            prefs.backgroundColor = Color(uiColor: UIColor(red: 0.98, green: 0.957, blue: 0.91, alpha: 1))
-            prefs.textColor = Color(uiColor: UIColor(red: 0.23, green: 0.196, blue: 0.157, alpha: 1))
+            prefs.backgroundColor = ReadiumNavigator.Color(hex: "#FAF4E8")!
+            prefs.textColor = ReadiumNavigator.Color(hex: "#3B3228")!
         case .dark:
-            prefs.backgroundColor = Color(uiColor: UIColor(red: 0.071, green: 0.071, blue: 0.071, alpha: 1))
-            prefs.textColor = Color(uiColor: UIColor(red: 0.847, green: 0.847, blue: 0.847, alpha: 1))
+            prefs.backgroundColor = ReadiumNavigator.Color(hex: "#121212")!
+            prefs.textColor = ReadiumNavigator.Color(hex: "#D8D8D8")!
         }
 
         return prefs
