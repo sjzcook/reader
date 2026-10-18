@@ -26,7 +26,7 @@ struct ReaderScreen: View {
                     WebReadingContainer(book: book, onClose: { dismiss() })
                 }
             } else if let loadError {
-                ReaderErrorView(message: loadError, onClose: dismiss)
+                ReaderErrorView(message: loadError, onClose: { dismiss() })
             } else {
                 ProgressView()
             }
@@ -71,7 +71,7 @@ private struct ReadiumReadingContainer: View {
     @State private var showTOC = false
     @State private var showAppearance = false
     @State private var toc: [TOCEntry] = []
-    @State private var pendingLink: Link?
+    @State private var pendingLink: ReadiumShared.Link?
     @State private var progress: Double
     @State private var chapterTitle: String
 
@@ -298,8 +298,8 @@ struct ReaderChrome: View {
 
     @EnvironmentObject private var settings: SettingsStore
 
-    private var foreground: Color { settings.appearance.theme.foreground }
-    private var background: Color { settings.appearance.theme.background }
+    private var foreground: SwiftUI.Color { settings.appearance.theme.foreground }
+    private var backgroundColor: SwiftUI.Color { settings.appearance.theme.background }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -360,7 +360,7 @@ struct ReaderChrome: View {
         .padding(.top, 6)
         .background(
             LinearGradient(
-                colors: [background.opacity(0.97), background.opacity(0.92)],
+                colors: [backgroundColor.opacity(0.97), backgroundColor.opacity(0.92)],
                 startPoint: .top,
                 endPoint: .bottom
             )
