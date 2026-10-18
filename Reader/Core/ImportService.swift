@@ -115,23 +115,50 @@ final class ImportService {
 
     // MARK: - 文件搬运
 
-    /// 把外部 URL 复制到 Inbox，返回可长期读取的本地路径。
+    /// 把文件选择器返回的安全作用域 URL 复制到 Inbox。
+    /// 使用 NSFileCoordinator 读取文件提供器（iCloud Drive 等）提供的文件，
+    /// 避免直接 Data(contentsOf:) 在某些文件提供器场景下读不到内容或一次性占用大量内存。
     func stage(_ url: URL) throws -> URL {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
 
-        guard let data = try? Data(contentsOf: url) else {
-            throw ImportError.unreadable(url.lastPathComponent)
-        }
-        guard !data.isEmpty else { throw ImportError.empty }
-
         var name = url.lastPathComponent
         if !name.lowercased().hasSuffix(".epub") { name += ".epub" }
-        let destination = FileManager.inboxURL.appendingPathComponent("\(UUID().uuidString)-\(name)")
+
+        let inbox = FileManager.inboxURL
         do {
-            try data.write(to: destination, options: .atomic)
+            try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
         } catch {
+            throw ImportError.copyFailed("无法创建导入目录：\\(error.localizedDescription)")
+        }
+
+        let destination = inbox.appendingPathComponent("\\(UUID().uuidString)-\\(name)")
+        var coordinationError: NSError?
+        var copyError: Error?
+
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        coordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { readableURL in
+            do {
+                let values = try readableURL.resourceValues(forKeys: [.fileSizeKey])
+                guard let size = values.fileSize, size > 0 else {
+                    throw ImportError.empty
+                }
+                try FileManager.default.copyItem(at: readableURL, to: destination)
+            } catch {
+                copyError = error
+            }
+        }
+
+        if let error = coordinationError {
+            throw ImportError.unreadable("\\(url.lastPathComponent)：\\(error.localizedDescription)")
+        }
+        if let error = copyError {
+            if let importError = error as? ImportError { throw importError }
             throw ImportError.copyFailed(error.localizedDescription)
+        }
+
+        guard FileManager.default.fileExists(atPath: destination.path) else {
+            throw ImportError.copyFailed("文件提供器未返回可读取的 EPUB 文件")
         }
         return destination
     }
