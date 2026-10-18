@@ -1,0 +1,135 @@
+name: Reader
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+packages:
+  EPUBKit:
+    url: https://github.com/witekbobrowski/EPUBKit.git
+    from: 1.0.0
+  Readium:
+    url: https://github.com/readium/swift-toolkit.git
+    exactVersion: 3.11.1
+
+targets:
+  Reader:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Reader
+        excludes:
+          - "**/.DS_Store"
+          - "Resources/Reader.entitlements"
+    dependencies:
+      - package: EPUBKit
+        product: EPUBKit
+      - package: Readium
+        product: ReadiumShared
+      - package: Readium
+        product: ReadiumStreamer
+      - package: Readium
+        product: ReadiumNavigator
+      - target: ShareExtension
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.reader
+        PRODUCT_NAME: ModuReader
+        INFOPLIST_FILE: Reader/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Reader/Resources/Reader.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+        SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      configs:
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+    info:
+      path: Reader/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: 墨读
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        # 其它 App 可用 modu://import?path=<file url> 把书交给本 App
+        CFBundleURLTypes:
+          - CFBundleURLName: com.example.reader.import
+            CFBundleURLSchemes:
+              - modu
+        # 「文件」App、邮件、微信等可以直接用本 App 打开 epub
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: EPUB Book
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - org.idpf.epub-container
+            CFBundleTypeRole: Viewer
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: org.idpf.epub-container
+            UTTypeDescription: EPUB 电子书
+            UTTypeConformsTo:
+              - public.data
+              - public.archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - epub
+              public.mime-type:
+                - application/epub+zip
+        # 允许在「文件」App 里浏览 App 的文稿目录
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: ShareExtension
+        excludes:
+          - "*.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.reader.share
+        PRODUCT_NAME: ModuShare
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: 导入到墨读
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              SUBQUERY(
+                extensionItems,
+                $extensionItem,
+                SUBQUERY(
+                  $extensionItem.attachments,
+                  $attachment,
+                  ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.idpf.epub-container"
+                ).@count > 0
+              ).@count > 0
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
