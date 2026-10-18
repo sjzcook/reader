@@ -1,4 +1,5 @@
 import Foundation
+import EPUBKit
 
 /// 阅读引擎类型。用户可以在设置里切换，书架和阅读器都依赖这个枚举。
 enum ReaderEngineKind: String, Codable, CaseIterable, Identifiable {
@@ -127,7 +128,7 @@ extension Book {
             title: document.title?.trimmed.nonEmpty ?? fileURL.deletingPathExtension().lastPathComponent,
             author: document.author?.trimmed.nonEmpty ?? "未知作者",
             publisher: document.publisher?.trimmed.nonEmpty ?? "",
-            language: document.language?.trimmed.nonEmpty ?? "",
+            language: document.metadata.language?.trimmed.nonEmpty ?? "",
             identifier: document.metadata.identifier?.trimmed.nonEmpty ?? "",
             fileName: fileURL.lastPathComponent,
             fileSize: size,
