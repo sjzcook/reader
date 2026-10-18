@@ -18,7 +18,7 @@ settings:
 packages:
   EPUBKit:
     url: https://github.com/witekbobrowski/EPUBKit.git
-    from: 1.0.0
+    exactVersion: 0.4.0
   Readium:
     url: https://github.com/readium/swift-toolkit.git
     exactVersion: 3.11.1
