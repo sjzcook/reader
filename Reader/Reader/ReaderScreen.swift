@@ -132,7 +132,7 @@ private struct ReadiumReadingContainer: View {
     private func open() async {
         do {
             let opened = try await engine.open(book: book)
-            toc = engine.tableOfContents(for: opened)
+            toc = await engine.tableOfContents(for: opened)
             initialLocator = engine.restoreLocator(for: book)
             publication = opened
         } catch {
