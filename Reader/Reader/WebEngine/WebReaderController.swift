@@ -275,7 +275,7 @@ final class WebReaderController: UIViewController {
         // 纯锚点：同一章内跳。用居中滚动，CSS 多栏下能落到正确的列上。
         if href.hasPrefix("#") {
             let fragment = String(href.dropFirst())
-            if let web {
+            if let web = webView {
                 let script = """
                 (function(){
                     var frag = \(Self.jsLiteral(fragment));
@@ -341,7 +341,7 @@ final class WebReaderController: UIViewController {
     /// 滚动模式下没有「页」的概念，用纵向可滚距离折算章内比例，
     /// 页码留空（`page`/`pages` 都为 1，界面上会隐藏页码）。
     private func reportScrolling() {
-        guard let web else { return }
+        guard let web = webView else { return }
         let scroller = web.scrollView
         let maxOffset = max(0, scroller.contentSize.height - scroller.bounds.height)
         let offset = max(0, min(scroller.contentOffset.y, maxOffset))
