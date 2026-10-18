@@ -20,19 +20,47 @@
 - 封面提取、书库搜索、排序（最近 / 添加时间 / 书名 / 作者）、网格 / 列表切换
 - 去重导入（EPUB identifier 或同名同大小文件）
 
-## 构建步骤
+## 构建环境：必须使用 macOS
 
-代码使用 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 描述工程结构。
+**`xcodegen generate` 与 `xcodebuild` 都只能在 macOS 上运行**，虚拟机绕不过去：
+
+| 方案 | 能否跑 xcodegen | 能否编译 iOS App | 说明 |
+|---|---|---|---|
+| Windows + 虚拟机装 macOS | ⚠️ 理论可行 | ❌（Apple Silicon 宿主除外） | 在 Intel/AMD 的 Windows 上装 macOS 虚拟机，违反 Apple EULA；而且没有 Metal 直通，Xcode 与模拟器基本不可用 |
+| Linux + Docker `xcodegen` | ✅ 可以 | ❌ | 有社区维护的 xcodegen Linux 镜像，但只能生成 `.xcodeproj`，无法编译、无法签名 |
+| 真实 Mac / Mac 租赁（MacStadium、MacinCloud） | ✅ | ✅ | 唯一完整可用的路径 |
+| GitHub Actions `macos-15` runner | ✅ | ✅ | 免费额度 2000 分钟/月，最省事 |
+
+所以本仓库采用「**Windows 上写代码 + 离线静态校验 → Mac/CI 上生成工程并编译**」的方式。
+
+### Windows 上能做的校验
 
 ```bash
-# 1. 安装 XcodeGen（macOS）
+python tools/check_project.py            # 校验 project.yml
+python tools/check_project.py --verbose  # 打印全部通过项
+python tools/test_check_project.py       # 校验器自测（需 PyYAML，可选）
+```
+
+`check_project.py` 复刻了 XcodeGen 对 `project.yml` 的主要校验（源目录存在性、excludes 命中、
+包/target 依赖合法性、entitlements 与 App Group、`NSExtensionActivationRule` 括号平衡、
+PrincipalClass 对应类是否存在、bundle id 前缀一致性）。当前结果：**36 项通过，0 警告，0 失败**。
+
+> 注意：它不生成 `.xcodeproj`，也不替代编译。
+
+### 没有 Mac 时怎么拿到编译反馈
+
+`.github/workflows/build.yml` 会在 GitHub 的 `macos-15` runner 上跑
+`xcodegen generate` → `xcodebuild build`（不签名），并把编译错误写进 Actions 的
+Job Summary、上传 `build.log` 与生成好的 `Reader.xcodeproj`。
+
+push 到 GitHub 后到 Actions 页面看结果即可；公开仓库不消耗额度。
+
+### 在 Mac 上生成工程
+
+```bash
 brew install xcodegen
-
-# 2. 生成 Xcode 工程
-cd Reader        # 本仓库根目录
-xcodegen generate
-
-# 3. 打开工程
+cd Reader                # 本仓库根目录
+xcodegen generate        # 产出 Reader.xcodeproj
 open Reader.xcodeproj
 ```
 
@@ -52,6 +80,10 @@ open Reader.xcodeproj
 
 ```
 project.yml                  # XcodeGen 描述：两个 target、依赖、Info.plist
+tools/
+  check_project.py           # project.yml 离线校验（Windows 可用）
+  test_check_project.py      # 校验器自测：手写 YAML 解析器 vs PyYAML
+.github/workflows/build.yml  # macOS runner 上 xcodegen + xcodebuild
 Reader/
   App/ReaderApp.swift        # @main、Inbox 消化、URL Scheme / 文件打开入口
   Core/

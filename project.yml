@@ -31,7 +31,6 @@ targets:
     sources:
       - path: Reader
         excludes:
-          - "**/.DS_Store"
           - "Resources/Reader.entitlements"
     dependencies:
       - package: EPUBKit
