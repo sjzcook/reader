@@ -84,7 +84,8 @@ final class ReadiumEngine {
         guard
             let json = book.readiumLocatorJSON,
             let data = json.data(using: .utf8),
-            let value = try? JSONDecoder().decode(JSONValue.self, from: data),
+            let raw = try? JSONSerialization.jsonObject(with: data),
+            let value = JSONValue(raw),
             let locator = try? Locator(json: value, warnings: nil)
         else { return nil }
         return locator
@@ -128,8 +129,8 @@ final class ReadiumEngine {
         // Readium 的 Color 只接受不带 # 的十六进制或 UIColor，这里统一走 UIColor。
         switch appearance.theme {
         case .light:
-            prefs.backgroundColor = Color(uiColor: UIColor.white)
-            prefs.textColor = Color(uiColor: UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1))
+            prefs.backgroundColor = SwiftUI.Color(uiColor: UIColor.white)
+            prefs.textColor = SwiftUI.Color(uiColor: UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1))
         case .sepia:
             prefs.backgroundColor = Color(uiColor: UIColor(red: 0.98, green: 0.957, blue: 0.91, alpha: 1))
             prefs.textColor = Color(uiColor: UIColor(red: 0.23, green: 0.196, blue: 0.157, alpha: 1))
@@ -144,7 +145,7 @@ final class ReadiumEngine {
 
 enum ReadiumEngineError: LocalizedError {
     case invalidURL
-    case asset(ReadError)
+    case asset(Error)
     case opening(PublicationOpenError)
     case navigatorUnavailable
 
@@ -165,12 +166,12 @@ struct TOCEntry: Identifiable, Hashable {
     let href: String
     let level: Int
     /// Readium 的 Link，用于直接跳转；自研引擎不使用。
-    let link: Link?
+    let link: ReadiumShared.Link?
 
     static func == (lhs: TOCEntry, rhs: TOCEntry) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
-    init(id: String, title: String, href: String, level: Int, link: Link? = nil) {
+    init(id: String, title: String, href: String, level: Int, link: ReadiumShared.Link? = nil) {
         self.id = id
         self.title = title
         self.href = href
