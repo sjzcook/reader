@@ -22,7 +22,7 @@ final class SettingsStore: ObservableObject {
 
     /// 分享扩展导入成功时是否震动/提示（扩展内无法控制，这里用于主 App 提示）
     @Published var showImportToast: Bool {
-        didSet { defaults.set(showImportToast, forKey: Keys.showImportToast) }
+        didSet { defaults.set(showImportToast, forKey: Keys.showToast) }
     }
 
     private let defaults: UserDefaults
