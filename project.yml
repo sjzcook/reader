@@ -16,6 +16,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
 
 packages:
+  AEXML:
+    url: https://github.com/tadija/AEXML.git
+    exactVersion: 4.6.0
   EPUBKit:
     url: https://github.com/witekbobrowski/EPUBKit.git
     exactVersion: 0.4.0
