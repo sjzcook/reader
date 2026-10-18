@@ -18,7 +18,7 @@ struct ReadiumReaderView: UIViewControllerRepresentable {
     /// 点击正文中间区域（用于呼出/隐藏工具栏）
     var onCenterTap: () -> Void
     /// 需要跳转到的目录项
-    var pendingLink: Link?
+    var pendingLink: ReadiumShared.Link?
 
     func makeUIViewController(context: Context) -> ReaderHostController {
         let host = ReaderHostController()
@@ -129,10 +129,10 @@ struct ReadiumReaderView: UIViewControllerRepresentable {
     // MARK: - 代理与手势
 
     @MainActor
-    final class Coordinator: NSObject, NavigatorDelegate {
+    final class Coordinator: NSObject, EPUBNavigatorDelegate {
         var parent: ReadiumReaderView
         weak var host: ReaderHostController?
-        var lastHandledLink: Link?
+        var lastHandledLink: ReadiumShared.Link?
 
         private var tapToken: InputObservableToken?
         private var directionalAdapter: DirectionalNavigationAdapter?
@@ -173,7 +173,7 @@ struct ReadiumReaderView: UIViewControllerRepresentable {
             )
             let adapter = DirectionalNavigationAdapter(
                 pointerPolicy: policy,
-                keyboardPolicy: .default,
+                keyboardPolicy: DirectionalNavigationAdapter.KeyboardPolicy(),
                 animatedTransition: true,
                 onNavigation: {} // 翻页时不做额外处理，交给 locationDidChange 保存进度
             )
@@ -201,6 +201,10 @@ struct ReadiumReaderView: UIViewControllerRepresentable {
         }
         func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
             parent.onLocationChange(locator)
+        }
+
+        func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
+            DebugLog.error("Readium 导航错误: \\(error)")
         }
 
         func navigator(_ navigator: Navigator, didFailToLoadResourceAt href: RelativeURL, withError error: ReadError) {
