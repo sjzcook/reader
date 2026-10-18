@@ -104,10 +104,10 @@ jobs:
           {
             echo "## Unsigned iOS IPA build"
             echo
-            echo "- Repository: `${{ github.repository }}`"
-            echo "- Commit: `${{ github.sha }}`"
-            echo "- Scheme: `Reader`"
-            echo "- Signing: disabled (`CODE_SIGNING_ALLOWED=NO`)"
+            echo "- Repository: ${{ github.repository }}"
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Scheme: Reader"
+            echo "- Signing: disabled (CODE_SIGNING_ALLOWED=NO)"
             echo
             if [[ -s dist/ios/ModuReader-unsigned.ipa ]]; then
               echo "Result: IPA created successfully."
