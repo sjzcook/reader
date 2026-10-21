@@ -112,7 +112,7 @@ private struct ReadiumReadingContainer: View {
                     onTOC: { showTOC = true },
                     onAppearance: { showAppearance = true }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.opacity)
             }
         }
         .task {
@@ -229,7 +229,7 @@ private struct WebReadingContainer: View {
                     onTOC: { showTOC = true },
                     onAppearance: { showAppearance = true }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.opacity)
             }
         }
         .task { load() }
@@ -286,7 +286,7 @@ private struct WebReadingContainer: View {
 
 // MARK: - 通用 UI 组件
 
-/// 阅读器顶部/底部工具栏
+/// 阅读器顶部/底部工具栏，改成悬浮的液态玻璃胶囊，正文会从玻璃后面透出来。
 struct ReaderChrome: View {
     let title: String
     let bookTitle: String
@@ -299,18 +299,17 @@ struct ReaderChrome: View {
     @EnvironmentObject private var settings: SettingsStore
 
     private var foreground: SwiftUI.Color { settings.appearance.theme.foreground }
-    private var backgroundColor: SwiftUI.Color { settings.appearance.theme.background }
+
+    private var progressText: String {
+        pageText.isEmpty ? "\(Int(progress * 100))%" : "\(pageText) · \(Int(progress * 100))%"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 40, height: 40)
-                }
-                Spacer()
-                VStack(spacing: 2) {
+            HStack(spacing: 10) {
+                GlassIconButton(systemImage: "chevron.left", action: onBack)
+
+                VStack(spacing: 1) {
                     Text(title)
                         .font(.footnote.weight(.semibold))
                         .lineLimit(1)
@@ -319,30 +318,36 @@ struct ReaderChrome: View {
                         .opacity(0.55)
                         .lineLimit(1)
                 }
-                Spacer()
-                Button(action: onAppearance) {
-                    Image(systemName: "textformat.size")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 40, height: 40)
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .liquidGlassCapsule(elevation: .medium)
+
+                GlassIconButton(systemImage: "textformat.size", action: onAppearance)
             }
-            .padding(.horizontal, 8)
-            .foregroundStyle(foreground)
+            .padding(.horizontal, 14)
 
             Spacer(minLength: 0)
 
-            VStack(spacing: 10) {
-                HStack {
+            VStack(spacing: 9) {
+                HStack(spacing: 12) {
                     Button(action: onTOC) {
-                        Label("目录", systemImage: "list.bullet")
-                            .font(.footnote)
+                        HStack(spacing: 5) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("目录")
+                                .font(.footnote.weight(.medium))
+                        }
+                        .contentShape(Rectangle())
                     }
-                    Spacer()
-                    Text(pageText.isEmpty ? "\(Int(progress * 100))%" : "\(pageText) · \(Int(progress * 100))%")
+                    .buttonStyle(.plain)
+
+                    Spacer(minLength: 0)
+
+                    Text(progressText)
                         .font(.caption.monospacedDigit())
-                        .opacity(0.6)
+                        .opacity(0.65)
                 }
-                .foregroundStyle(foreground)
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -354,23 +359,14 @@ struct ReaderChrome: View {
                 }
                 .frame(height: 4)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .liquidGlass(cornerRadius: 26, elevation: .high)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 6)
         }
-        .padding(.top, 6)
-        .background(
-            LinearGradient(
-                colors: [backgroundColor.opacity(0.97), backgroundColor.opacity(0.92)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .bottom)
-        )
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(foreground.opacity(0.10))
-                .frame(height: 0.5)
-        }
+        .padding(.top, 4)
+        .foregroundStyle(foreground)
     }
 }
 
@@ -405,35 +401,45 @@ struct TOCSheet: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if entries.isEmpty {
-                    Text("这本书没有提供目录")
-                        .foregroundStyle(.secondary)
-                } else {
-                    List(entries) { entry in
-                        Button {
-                            onSelect(entry)
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 8) {
-                                if entry.level > 0 {
-                                    Rectangle()
-                                        .fill(.clear)
-                                        .frame(width: CGFloat(entry.level) * 12)
+            ZStack {
+                GlassBackdrop(theme: settings.appearance.theme, animated: false)
+
+                Group {
+                    if entries.isEmpty {
+                        Text("这本书没有提供目录")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        List(entries) { entry in
+                            Button {
+                                onSelect(entry)
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if entry.level > 0 {
+                                        Rectangle()
+                                            .fill(.clear)
+                                            .frame(width: CGFloat(entry.level) * 12)
+                                    }
+                                    Text(entry.title)
+                                        .font(entry.level == 0 ? .body : .callout)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                    Spacer(minLength: 0)
+                                    if entry.id == selectedID {
+                                        Image(systemName: "smallcircle.filled.circle")
+                                            .foregroundStyle(.tint)
+                                    }
                                 }
-                                Text(entry.title)
-                                    .font(entry.level == 0 ? .body : .callout)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                Spacer(minLength: 0)
-                                if entry.id == selectedID {
-                                    Image(systemName: "smallcircle.filled.circle")
-                                        .foregroundStyle(.tint)
-                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 7, leading: 18, bottom: 7, trailing: 18))
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
-                    .listStyle(.plain)
                 }
             }
             .navigationTitle("目录")
@@ -446,6 +452,7 @@ struct TOCSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .glassSheetBackground()
     }
 }
 
@@ -467,18 +474,39 @@ struct AppearanceSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
+        .glassSheetBackground()
     }
 }
 
-/// 外观设置的具体表单。阅读器弹窗与设置页共用。
+/// 外观设置的具体表单。阅读器弹窗与设置页共用，统一使用玻璃卡片。
 struct AppearanceSheetContent: View {
     @Binding var appearance: AppearanceSettings
 
     @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
-        Form {
-            Section("主题") {
+        ZStack {
+            GlassBackdrop(theme: appearance.theme, animated: false)
+
+            ScrollView {
+                VStack(spacing: 22) {
+                    themeSection
+                    typographySection
+                    fontSection
+                    optionsSection
+                    engineSection
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    private var themeSection: some View {
+        GlassSection("主题") {
+            GlassRow(showsDivider: false) {
                 Picker("主题", selection: $appearance.theme) {
                     ForEach(AppearanceSettings.ThemeKind.allCases) { theme in
                         Text(theme.title).tag(theme)
@@ -486,84 +514,151 @@ struct AppearanceSheetContent: View {
                 }
                 .pickerStyle(.segmented)
             }
+        }
+    }
 
-            Section("字号与排版") {
+    private var typographySection: some View {
+        GlassSection("字号与排版") {
+            GlassRow {
                 Stepper(value: $appearance.fontSize, in: 12...32, step: 1) {
                     HStack {
                         Text("字号")
+                            .font(.system(size: 15))
                         Spacer()
                         Text("\(Int(appearance.fontSize)) pt")
+                            .font(.system(size: 15))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                 }
+            }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("行距")
-                        Spacer()
-                        Text(String(format: "%.2f", appearance.lineHeight))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    Slider(value: $appearance.lineHeight, in: 1.2...2.4, step: 0.05)
-                }
+            sliderRow(
+                title: "行距",
+                value: $appearance.lineHeight,
+                range: 1.2...2.4,
+                step: 0.05,
+                text: String(format: "%.2f", appearance.lineHeight)
+            )
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("段间距")
-                        Spacer()
-                        Text(String(format: "%.2f em", appearance.paragraphSpacing))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    Slider(value: $appearance.paragraphSpacing, in: 0...1.5, step: 0.05)
-                }
+            sliderRow(
+                title: "段间距",
+                value: $appearance.paragraphSpacing,
+                range: 0...1.5,
+                step: 0.05,
+                text: String(format: "%.2f em", appearance.paragraphSpacing),
+                showsDivider: false
+            )
 
-                VStack(alignment: .leading, spacing: 6) {
+            GlassRow {
+                VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("页边距")
+                            .font(.system(size: 15))
                         Spacer()
                         Text("\(Int(appearance.pageMargin * 100))%")
+                            .font(.system(size: 15))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                     Slider(value: $appearance.pageMargin, in: 0.02...0.18, step: 0.01)
                 }
             }
+        }
+    }
 
-            Section("字体") {
-                Picker("字体", selection: $appearance.fontFamily) {
-                    ForEach(AppearanceSettings.fontChoices, id: \.name) { choice in
-                        Text(choice.name).tag(choice.id)
+    private var fontSection: some View {
+        GlassSection("字体") {
+            GlassRow(showsDivider: false) {
+                HStack(spacing: 8) {
+                    Text("字体")
+                        .font(.system(size: 15))
+                    Spacer(minLength: 0)
+                    Picker("字体", selection: $appearance.fontFamily) {
+                        ForEach(AppearanceSettings.fontChoices.indices, id: \.self) { index in
+                            let choice = AppearanceSettings.fontChoices[index]
+                            Text(choice.name).tag(choice.id)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
                 }
-                .pickerStyle(.navigationLink)
             }
+        }
+    }
 
-            Section {
+    private var optionsSection: some View {
+        GlassSection(
+            "排版选项",
+            footer: "关闭「自带排版」后，字体、字号、行距才会完全生效。固定版式 EPUB 不受这些设置影响。"
+        ) {
+            GlassRow {
                 Toggle("使用书籍自带排版", isOn: $appearance.publisherStyles)
+                    .font(.system(size: 15))
+                    .tint(.accentColor)
+            }
+            GlassRow {
                 Toggle("两端对齐", isOn: $appearance.justify)
+                    .font(.system(size: 15))
+                    .tint(.accentColor)
+            }
+            GlassRow(showsDivider: false) {
                 Toggle("滚动阅读（不分页）", isOn: $appearance.isScrolling)
-            } header: {
-                Text("排版选项")
-            } footer: {
-                Text("关闭「自带排版」后，字体、字号、行距才会完全生效。固定版式 EPUB 不受这些设置影响。")
+                    .font(.system(size: 15))
+                    .tint(.accentColor)
+            }
+        }
+    }
+
+    private var engineSection: some View {
+        GlassSection(
+            "引擎",
+            footer: "切换引擎后重新打开本书生效。进度按引擎分别保存。"
+        ) {
+            GlassRow {
+                HStack(spacing: 8) {
+                    Text("阅读引擎")
+                        .font(.system(size: 15))
+                    Spacer(minLength: 0)
+                    Picker("阅读引擎", selection: $settings.engine) {
+                        ForEach(ReaderEngineKind.allCases) { engine in
+                            Text(engine.title).tag(engine)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
             }
 
-            Section {
-                Picker("阅读引擎", selection: $settings.engine) {
-                    ForEach(ReaderEngineKind.allCases) { engine in
-                        Text(engine.title).tag(engine)
-                    }
-                }
+            GlassRow(showsDivider: false) {
                 Text(settings.engine.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } header: {
-                Text("引擎")
-            } footer: {
-                Text("切换引擎后重新打开本书生效。进度按引擎分别保存。")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func sliderRow(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        text: String,
+        showsDivider: Bool = true
+    ) -> some View {
+        GlassRow(showsDivider: showsDivider) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 15))
+                    Spacer()
+                    Text(text)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(value: value, in: range, step: step)
             }
         }
     }

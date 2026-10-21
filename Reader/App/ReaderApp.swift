@@ -102,9 +102,12 @@ enum LibraryIngest {
 /// 根视图：集中处理导入失败提示
 struct RootView: View {
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         LibraryScreen()
+            // 界面配色跟随阅读主题，玻璃与文字才能保持一致的对比度
+            .preferredColorScheme(settings.appearance.theme == .dark ? .dark : .light)
             .alert(
                 "导入失败",
                 isPresented: Binding(

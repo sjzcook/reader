@@ -86,19 +86,19 @@ struct LibraryScreen: View {
                                   systemImage: isGrid ? "list.bullet" : "square.grid.2x2")
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        glassBarIcon("ellipsis")
                     }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         showImporter = true
                     } label: {
-                        Image(systemName: "plus")
+                        glassBarIcon("plus")
                     }
                     Button {
                         showSettings = true
                     } label: {
-                        Image(systemName: "gearshape")
+                        glassBarIcon("gearshape")
                     }
                 }
             }
@@ -189,6 +189,9 @@ struct LibraryScreen: View {
                     BookRow(book: book)
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
                 .swipeActions {
                     Button(role: .destructive) {
                         pendingDelete = book
@@ -252,6 +255,19 @@ struct LibraryScreen: View {
             if toast == text { toast = nil }
         }
     }
+
+    /// 导航栏图标。iOS 26 由系统玻璃承载，低版本自己套一层玻璃圆。
+    @ViewBuilder
+    private func glassBarIcon(_ name: String) -> some View {
+        if #available(iOS 26.0, *) {
+            Image(systemName: name)
+        } else {
+            Image(systemName: name)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .liquidGlassCircle(elevation: .low)
+        }
+    }
 }
 
 // MARK: - 背景
@@ -260,13 +276,7 @@ struct PageBackground: View {
     @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
-        let theme = settings.appearance.theme
-        LinearGradient(
-            colors: [theme.background, theme.background.opacity(0.94)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
+        GlassBackdrop(theme: settings.appearance.theme)
     }
 }
 
@@ -299,6 +309,9 @@ struct BookCard: View {
                     .lineLimit(1)
             }
         }
+        .padding(9)
+        .liquidGlass(cornerRadius: 22, elevation: .low, interactive: true, blendsBackdrop: false)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -383,7 +396,10 @@ struct ProgressBadge: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(
-                Capsule().fill(finished ? Color.green.opacity(0.8) : Color.black.opacity(0.42))
+                Capsule().fill(finished ? Color(hex: 0x34C759).opacity(0.85) : Color.black.opacity(0.38))
+            )
+            .overlay(
+                Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.6)
             )
     }
 }
@@ -416,11 +432,13 @@ struct BookRow: View {
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.caption)
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .liquidGlass(cornerRadius: 20, elevation: .low, interactive: true, blendsBackdrop: false)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -435,8 +453,10 @@ struct EmptyLibraryView: View {
     var body: some View {
         VStack(spacing: 18) {
             Image(systemName: isSearching ? "magnifyingglass" : "books.vertical")
-                .font(.system(size: 46, weight: .light))
-                .foregroundStyle(settings.appearance.theme.foreground.opacity(0.25))
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(settings.appearance.theme.foreground.opacity(0.45))
+                .frame(width: 92, height: 92)
+                .liquidGlassCircle(elevation: .low)
 
             Text(isSearching ? "没有找到匹配的书" : "书架还是空的")
                 .font(.headline)
@@ -451,11 +471,12 @@ struct EmptyLibraryView: View {
 
                 Button(action: onAdd) {
                     Label("添加 EPUB 文件", systemImage: "plus")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 13)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .liquidGlassCapsule(tint: Color.accentColor, elevation: .medium, interactive: true)
                 .padding(.top, 4)
             }
         }
@@ -466,14 +487,15 @@ struct EmptyLibraryView: View {
 struct ImportOverlay: View {
     var body: some View {
         ZStack {
-            Color.black.opacity(0.18).ignoresSafeArea()
+            Color.black.opacity(0.06).ignoresSafeArea()
             VStack(spacing: 12) {
                 ProgressView()
                 Text("正在导入…")
                     .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(26)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(28)
+            .liquidGlass(cornerRadius: 24, elevation: .high)
         }
         .transition(.opacity)
     }
@@ -483,12 +505,7 @@ struct ToastView: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.footnote)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Capsule().fill(Color.black.opacity(0.78)))
+        GlassToast(text: text)
     }
 }
 

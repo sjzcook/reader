@@ -19,6 +19,8 @@
 - 目录跳转、阅读进度（含章内位置）自动记忆，两套引擎进度分别保存
 - 封面提取、书库搜索、排序（最近 / 添加时间 / 书名 / 作者）、网格 / 列表切换
 - 去重导入（EPUB identifier 或同名同大小文件）
+- **Liquid Glass 视觉**：书架/设置/阅读页统一使用玻璃卡片与悬浮玻璃胶囊工具栏；
+  iOS 26 上走系统原生 `glassEffect`，iOS 16–25 用自绘玻璃兜底（`Reader/UI/LiquidGlass.swift`）
 
 ## 构建环境：必须使用 macOS
 
@@ -98,6 +100,7 @@ Reader/
   UI/
     LibraryScreen.swift      # 书架
     SettingsScreen.swift     # 设置页
+    LiquidGlass.swift        # 液态玻璃设计系统：玻璃表面 / 光晕背景 / 玻璃分组卡片
   Resources/
     Assets.xcassets          # AppIcon、AccentColor
     Reader.entitlements      # App Group

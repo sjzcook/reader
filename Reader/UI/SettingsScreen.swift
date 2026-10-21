@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 设置页：阅读引擎切换 + 外观 + 存储管理。
+/// 设置页：阅读引擎切换 + 外观 + 存储管理。整体采用液态玻璃卡片布局。
 struct SettingsScreen: View {
 
     @EnvironmentObject private var settings: SettingsStore
@@ -11,17 +11,28 @@ struct SettingsScreen: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                engineSection
-                readingSection
-                storageSection
-                aboutSection
+            ZStack {
+                GlassBackdrop(theme: settings.appearance.theme, animated: false)
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        engineSection
+                        readingSection
+                        storageSection
+                        aboutSection
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 36)
+                }
+                .scrollIndicators(.hidden)
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
+                        .font(.system(size: 15, weight: .semibold))
                 }
             }
             .confirmationDialog("清空书库？", isPresented: $showClearConfirm, titleVisibility: .visible) {
@@ -38,38 +49,57 @@ struct SettingsScreen: View {
     // MARK: - 引擎
 
     private var engineSection: some View {
-        Section {
-            ForEach(ReaderEngineKind.allCases) { engine in
-                EngineRow(
-                    engine: engine,
-                    isSelected: settings.engine == engine,
-                    onSelect: {
-                        withAnimation(.easeInOut(duration: 0.15)) { settings.engine = engine }
-                    }
-                )
+        let engines = ReaderEngineKind.allCases
+        return GlassSection(
+            "阅读引擎",
+            footer: "两套引擎的解析与渲染方式不同，阅读进度分别保存。切换后重新打开书本即可生效。"
+        ) {
+            ForEach(engines.indices, id: \.self) { index in
+                let engine = engines[index]
+                GlassRow(showsDivider: index < engines.count - 1) {
+                    EngineRow(
+                        engine: engine,
+                        isSelected: settings.engine == engine,
+                        onSelect: {
+                            withAnimation(.easeInOut(duration: 0.15)) { settings.engine = engine }
+                        }
+                    )
+                }
             }
-        } header: {
-            Text("阅读引擎")
-        } footer: {
-            Text("两套引擎的解析与渲染方式不同，阅读进度分别保存。切换后重新打开书本即可生效。")
         }
     }
 
     // MARK: - 阅读
 
     private var readingSection: some View {
-        Section("阅读") {
-            Toggle("导入后自动打开", isOn: $settings.openAfterImport)
-
-            NavigationLink {
-                AppearanceSettingsScreen()
-            } label: {
-                HStack {
-                    Text("外观与排版")
-                    Spacer()
-                    Text("\(Int(settings.appearance.fontSize))pt · \(settings.appearance.theme.title)")
-                        .foregroundStyle(.secondary)
+        GlassSection("阅读") {
+            GlassRow {
+                Toggle(isOn: $settings.openAfterImport) {
+                    Text("导入后自动打开")
+                        .font(.system(size: 15))
                 }
+                .tint(.accentColor)
+            }
+
+            GlassRow(showsDivider: false) {
+                NavigationLink {
+                    AppearanceSettingsScreen()
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("外观与排版")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                        Text("\(Int(settings.appearance.fontSize))pt · \(settings.appearance.theme.title)")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -77,49 +107,85 @@ struct SettingsScreen: View {
     // MARK: - 存储
 
     private var storageSection: some View {
-        Section {
-            LabeledContent("书籍数量", value: "\(library.books.count) 本")
-            LabeledContent("占用空间", value: formattedSize)
-            Button(role: .destructive) {
-                showClearConfirm = true
-            } label: {
-                Text("清空书库")
+        GlassSection(
+            "存储",
+            footer: "书籍保存在 App 的共享容器里，可在「文件」App → 我的 iPhone → 墨读 中查看。"
+        ) {
+            GlassRow {
+                LabeledContent("书籍数量") {
+                    Text("\(library.books.count) 本").foregroundStyle(.secondary)
+                }
+                .font(.system(size: 15))
             }
-            .disabled(library.books.isEmpty)
-        } header: {
-            Text("存储")
-        } footer: {
-            Text("书籍保存在 App 的共享容器里，可在「文件」App → 我的 iPhone → 墨读 中查看。")
+
+            GlassRow {
+                LabeledContent("占用空间") {
+                    Text(formattedSize).foregroundStyle(.secondary)
+                }
+                .font(.system(size: 15))
+            }
+
+            GlassRow(showsDivider: false) {
+                Button(role: .destructive) {
+                    showClearConfirm = true
+                } label: {
+                    Text("清空书库")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(library.books.isEmpty)
+            }
         }
     }
 
+    // MARK: - 关于
+
     private var aboutSection: some View {
-        Section {
-            LabeledContent("版本", value: appVersion)
-            Link(destination: URL(string: "https://github.com/readium/swift-toolkit")!) {
-                HStack {
-                    Text("Readium Swift Toolkit")
-                    Spacer()
-                    Text("3.11").foregroundStyle(.secondary)
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+        GlassSection(
+            "关于",
+            footer: "两者均为 MIT 许可的开源项目，本项目在此基础上实现了书架与阅读界面。"
+        ) {
+            GlassRow {
+                LabeledContent("版本") {
+                    Text(appVersion).foregroundStyle(.secondary)
+                }
+                .font(.system(size: 15))
+            }
+
+            GlassRow {
+                Link(destination: URL(string: "https://github.com/readium/swift-toolkit")!) {
+                    HStack(spacing: 8) {
+                        Text("Readium Swift Toolkit")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                        Text("3.11").font(.system(size: 14)).foregroundStyle(.secondary)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
                 }
             }
-            Link(destination: URL(string: "https://github.com/witekbobrowski/EPUBKit")!) {
-                HStack {
-                    Text("EPUBKit")
-                    Spacer()
-                    Text("1.x").foregroundStyle(.secondary)
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+
+            GlassRow(showsDivider: false) {
+                Link(destination: URL(string: "https://github.com/witekbobrowski/EPUBKit")!) {
+                    HStack(spacing: 8) {
+                        Text("EPUBKit")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                        Text("1.x").font(.system(size: 14)).foregroundStyle(.secondary)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
                 }
             }
-        } header: {
-            Text("关于")
-        } footer: {
-            Text("两者均为 MIT 许可的开源项目，本项目在此基础上实现了书架与阅读界面。")
         }
     }
 
@@ -152,7 +218,7 @@ struct EngineRow: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
                         Text(engine.title)
-                            .font(.body.weight(.medium))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.primary)
                         Text(engine.badge)
                             .font(.system(size: 10, weight: .semibold))
@@ -172,7 +238,7 @@ struct EngineRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
