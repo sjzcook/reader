@@ -13,13 +13,14 @@ concurrency:
 jobs:
   build-signed-ios:
     # Hosted runner must provide Xcode and macOS.
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 60
 
     env:
       APP_BUNDLE_ID: com.sjzcook.modureader
       EXTENSION_BUNDLE_ID: com.sjzcook.modureader.share
       APP_GROUP_ID: group.com.sjzcook.modureader
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
 
     steps:
       - name: Checkout repository
