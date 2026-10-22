@@ -106,7 +106,7 @@ struct ReadiumReaderView: UIViewControllerRepresentable {
                 self.navigator = navigator
                 onAttach?(navigator)
             } catch {
-                errorLabel.text = "Readium 引擎打开失败\n\(error.localizedDescription)\n\n可回到书架，在设置里切换为 EPUBKit 引擎。"
+                errorLabel.text = "打开失败\n\(error.localizedDescription)\n\n回到书架后重新打开试试。"
                 errorLabel.isHidden = false
                 DebugLog.error("Readium 初始化失败: \(error)")
             }

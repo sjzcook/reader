@@ -1,46 +1,6 @@
 import Foundation
 import EPUBKit
 
-/// 阅读引擎类型。用户可以在设置里切换，书架和阅读器都依赖这个枚举。
-enum ReaderEngineKind: String, Codable, CaseIterable, Identifiable {
-    /// Readium Swift Toolkit：成熟的分页引擎，排版与交互接近商业阅读器。
-    case readium
-    /// EPUBKit + WKWebView：EPUBKit 负责解析，自己实现渲染与分页。
-    case epubkit
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .readium: return "Readium 引擎"
-        case .epubkit: return "EPUBKit 引擎"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .readium: return "Readium Swift Toolkit · 专业排版"
-        case .epubkit: return "EPUBKit + 自研渲染 · 轻量可控"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .readium:
-            return "使用 Readium 3.11 的 EPUBNavigatorViewController。分页、字体、主题由成熟的 Readium CSS 驱动，对复杂排版（竖排、注音、固定版式）兼容性最好。"
-        case .epubkit:
-            return "用 EPUBKit 解析 OPF/NCX，再用 WKWebView + CSS 多栏自行分页。代码完全可控、依赖更轻，适合二次开发排版逻辑。"
-        }
-    }
-
-    var badge: String {
-        switch self {
-        case .readium: return "推荐"
-        case .epubkit: return "轻量"
-        }
-    }
-}
-
 /// 一本已导入的书。
 struct Book: Identifiable, Codable, Hashable {
     let id: UUID
@@ -59,17 +19,8 @@ struct Book: Identifiable, Codable, Hashable {
     // MARK: - 阅读进度
     /// 0...1 的总进度。
     var progress: Double
-    /// 当前章节在脊（spine）里的索引。
-    var chapterIndex: Int
-    /// 章节内部锚点（元素 id 或片段），用于精确恢复。
-    var fragment: String?
-    /// Readium 引擎用的 `Locator` JSON；两套引擎各自保存，互不干扰。
+    /// Readium `Locator` 的 JSON，用于精确恢复上次阅读位置。
     var readiumLocatorJSON: String?
-    /// 章节内的比例位置，自研引擎用做兜底恢复。
-    var chapterProgression: Double
-    /// 已翻到的页码。
-    var lastPage: Int
-    var totalPages: Int
 
     var lastOpenedAt: Date?
     var finishedAt: Date?
@@ -108,12 +59,7 @@ struct Book: Identifiable, Codable, Hashable {
             epubVersion: "",
             hasCover: false,
             progress: 0,
-            chapterIndex: 0,
-            fragment: nil,
             readiumLocatorJSON: nil,
-            chapterProgression: 0,
-            lastPage: 0,
-            totalPages: 0,
             lastOpenedAt: nil,
             finishedAt: nil
         )
@@ -136,12 +82,7 @@ extension Book {
             epubVersion: "",
             hasCover: false,
             progress: 0,
-            chapterIndex: 0,
-            fragment: nil,
             readiumLocatorJSON: nil,
-            chapterProgression: 0,
-            lastPage: 0,
-            totalPages: 0,
             lastOpenedAt: nil,
             finishedAt: nil
         )

@@ -16,7 +16,7 @@ struct AppearanceSettings: Codable, Equatable {
             }
         }
 
-        /// 自研引擎用的配色
+        /// 阅读主题配色
         var background: Color {
             switch self {
             case .light: return Color(hex: 0xFFFFFF)

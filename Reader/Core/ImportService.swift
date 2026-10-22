@@ -105,9 +105,6 @@ final class ImportService {
             book.hasCover = await saveCover(from: coverSource, id: book.id)
         }
 
-        // 5. 持久化解压后的内容，供自研引擎使用；失败不影响导入。
-        await cacheExtractedBook(from: parsed.document.directory, id: book.id)
-
         store.add(book)
         DebugLog.info("导入成功：\(book.title)")
         return ImportResult(book: book, wasDuplicate: false)
@@ -206,23 +203,6 @@ final class ImportService {
                 } catch {
                     continuation.resume(returning: false)
                 }
-            }
-        }
-    }
-
-    /// EPUBKit 解析时把书解压到了系统临时目录（随时可能被清理），
-    /// 这里复制一份到 `<Extracted>/<id>/` 长期保存。
-    private func cacheExtractedBook(from directory: URL, id: UUID) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            parsingQueue.async {
-                let destination = FileManager.extractedURL.appendingPathComponent(id.uuidString)
-                try? FileManager.default.removeItem(at: destination)
-                do {
-                    try FileManager.default.copyItem(at: directory, to: destination)
-                } catch {
-                    DebugLog.error("缓存解压目录失败: \(error)")
-                }
-                continuation.resume()
             }
         }
     }

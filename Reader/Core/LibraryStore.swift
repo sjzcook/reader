@@ -64,7 +64,6 @@ final class LibraryStore: ObservableObject {
     func remove(_ book: Book) {
         books.removeAll { $0.id == book.id }
         try? FileManager.default.removeItem(at: book.fileURL)
-        try? FileManager.default.removeItem(at: FileManager.extractedURL.appendingPathComponent(book.id.uuidString))
         try? FileManager.default.removeItem(at: FileManager.coversURL.appendingPathComponent("\(book.id.uuidString).jpg"))
         save()
     }

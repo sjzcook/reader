@@ -155,18 +155,18 @@ enum ReadiumEngineError: LocalizedError {
         case .invalidURL: return "书籍文件路径无效"
         case .asset(let error): return "无法读取书籍：\(String(describing: error))"
         case .opening(let error): return "无法打开书籍：\(String(describing: error))"
-        case .navigatorUnavailable: return "阅读引擎初始化失败，可尝试在设置中切换为 EPUBKit 引擎"
+        case .navigatorUnavailable: return "阅读引擎初始化失败，请重试或重新打开这本书"
         }
     }
 }
 
-/// 目录条目（两套引擎共用的展示模型）
+/// 目录条目
 struct TOCEntry: Identifiable, Hashable {
     let id: String
     let title: String
     let href: String
     let level: Int
-    /// Readium 的 Link，用于直接跳转；自研引擎不使用。
+    /// Readium 的 Link，用于直接跳转。
     let link: ReadiumShared.Link?
 
     static func == (lhs: TOCEntry, rhs: TOCEntry) -> Bool { lhs.id == rhs.id }

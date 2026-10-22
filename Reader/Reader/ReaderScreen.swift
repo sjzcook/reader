@@ -1,9 +1,8 @@
 import SwiftUI
 import ReadiumShared
 import ReadiumNavigator
-import EPUBKit
 
-/// 阅读页。根据设置里的引擎类型分派到两套实现，外面的工具栏、目录、外观面板共用。
+/// 阅读页。阅读渲染统一由 Readium 承担，外面包一层工具栏、目录与外观面板。
 struct ReaderScreen: View {
 
     let bookID: UUID
@@ -19,12 +18,7 @@ struct ReaderScreen: View {
             settings.appearance.theme.background.ignoresSafeArea()
 
             if let book {
-                switch settings.engine {
-                case .readium:
-                    ReadiumReadingContainer(book: book, onClose: { dismiss() })
-                case .epubkit:
-                    WebReadingContainer(book: book, onClose: { dismiss() })
-                }
+                ReadiumReadingContainer(book: book, onClose: { dismiss() })
             } else if let loadError {
                 ReaderErrorView(message: loadError, onClose: { dismiss() })
             } else {
@@ -136,7 +130,7 @@ private struct ReadiumReadingContainer: View {
             initialLocator = engine.restoreLocator(for: book)
             publication = opened
         } catch {
-            self.error = "Readium 引擎打不开这本书：\(error.localizedDescription)\n\n可以回到设置里切换为 EPUBKit 引擎再试。"
+            self.error = "打不开这本书：\(error.localizedDescription)\n\n文件可能已损坏，或者不是标准的 EPUB。"
         }
     }
 
@@ -157,133 +151,6 @@ private struct ReadiumReadingContainer: View {
     }
 }
 
-// MARK: - EPUBKit 版阅读容器
-
-private struct WebReadingContainer: View {
-
-    let book: Book
-    let onClose: () -> Void
-    @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var library: LibraryStore
-
-    @State private var model: EPUBContentModel?
-    @State private var error: String?
-    @State private var showChrome = true
-    @State private var showTOC = false
-    @State private var showAppearance = false
-    @State private var progress: Double
-    @State private var chapterTitle: String
-    @State private var chapterIndex: Int
-    @State private var pageText: String = ""
-    @State private var pendingHref: String?
-    /// 打开时应该落在哪一章 / 章内哪个位置。只作为控制器的起点，之后由控制器自己维护。
-    private let initialChapterIndex: Int
-    private let initialRatio: Double
-    /// 用于在切换外观时把新设置推给控制器
-    @State private var appearanceToken = UUID()
-
-    init(book: Book, onClose: @escaping () -> Void) {
-        self.book = book
-        self.onClose = onClose
-        _progress = State(initialValue: book.progress)
-        _chapterTitle = State(initialValue: book.title)
-        _chapterIndex = State(initialValue: book.chapterIndex)
-        initialChapterIndex = book.chapterIndex
-        initialRatio = book.chapterProgression
-    }
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            if let model {
-                WebReaderRepresentable(
-                    model: model,
-                    appearance: settings.appearance,
-                    chapter: initialChapterIndex,
-                    fragment: book.fragment,
-                    ratio: initialRatio,
-                    showChrome: showChrome,
-                    onProgress: { chapter, ratio, page, pages in
-                        handleProgress(chapter: chapter, ratio: ratio, page: page, pages: pages, model: model)
-                    },
-                    onCenterTap: { withAnimation(.easeInOut(duration: 0.2)) { showChrome.toggle() } },
-                    onExternalURL: { url in
-                        UIApplication.shared.open(url)
-                    },
-                    pendingHref: pendingHref,
-                    appearanceToken: appearanceToken
-                )
-                .ignoresSafeArea()
-            } else if let error {
-                ReaderErrorView(message: error, onClose: onClose)
-            } else {
-                ProgressView().tint(settings.appearance.theme.foreground)
-            }
-
-            if showChrome, model != nil {
-                ReaderChrome(
-                    title: chapterTitle,
-                    bookTitle: book.title,
-                    progress: progress,
-                    pageText: pageText,
-                    onBack: onClose,
-                    onTOC: { showTOC = true },
-                    onAppearance: { showAppearance = true }
-                )
-                .transition(.opacity)
-            }
-        }
-        .task { load() }
-        .onChange(of: settings.appearance) { _ in
-            appearanceToken = UUID()
-        }
-        .sheet(isPresented: $showTOC) {
-            TOCSheet(entries: model?.tocEntries ?? [], selectedID: nil) { entry in
-                pendingHref = entry.href
-                showTOC = false
-            }
-        }
-        .sheet(isPresented: $showAppearance) {
-            AppearanceSheet(appearance: $settings.appearance)
-        }
-    }
-
-    private func load() {
-        guard model == nil else { return }
-        // 优先用导入时缓存好的解压目录，其次把 epub 重新解压
-        let extracted = FileManager.extractedURL.appendingPathComponent(book.id.uuidString)
-        if FileManager.default.fileExists(atPath: extracted.appendingPathComponent("META-INF/container.xml").path),
-           let cached = EPUBContentModel(directory: extracted) {
-            model = cached
-            chapterTitle = cached.chapters[safe: book.chapterIndex]?.title ?? book.title
-            return
-        }
-        if let fresh = EPUBContentModel(directory: book.fileURL) {
-            model = fresh
-            chapterTitle = fresh.chapters[safe: book.chapterIndex]?.title ?? book.title
-        } else {
-            error = "EPUBKit 解析失败。这本书可能使用了加密或非标准的 EPUB 结构，建议切换到 Readium 引擎。"
-        }
-    }
-
-    private func handleProgress(chapter: Int, ratio: Double, page: Int, pages: Int, model: EPUBContentModel) {
-        chapterIndex = chapter
-        let total = Double(model.chapters.count)
-        progress = total > 0 ? (Double(chapter) + ratio) / total : 0
-        chapterTitle = model.chapters[safe: chapter]?.title ?? book.title
-        pageText = pages > 1 ? "\(page)/\(pages)" : ""
-
-        if var latest = library.book(id: book.id) {
-            latest.progress = progress
-            latest.chapterIndex = chapter
-            latest.chapterProgression = ratio
-            latest.lastPage = page
-            latest.totalPages = pages
-            if progress >= 0.995 { latest.finishedAt = Date() }
-            library.update(latest)
-        }
-    }
-}
-
 // MARK: - 通用 UI 组件
 
 /// 阅读器顶部/底部工具栏，改成悬浮的液态玻璃胶囊，正文会从玻璃后面透出来。
@@ -291,7 +158,6 @@ struct ReaderChrome: View {
     let title: String
     let bookTitle: String
     let progress: Double
-    var pageText: String = ""
     let onBack: () -> Void
     let onTOC: () -> Void
     let onAppearance: () -> Void
@@ -301,7 +167,7 @@ struct ReaderChrome: View {
     private var foreground: SwiftUI.Color { settings.appearance.theme.foreground }
 
     private var progressText: String {
-        pageText.isEmpty ? "\(Int(progress * 100))%" : "\(pageText) · \(Int(progress * 100))%"
+        "\(Int(progress * 100))%"
     }
 
     var body: some View {
@@ -482,8 +348,6 @@ struct AppearanceSheet: View {
 struct AppearanceSheetContent: View {
     @Binding var appearance: AppearanceSettings
 
-    @EnvironmentObject private var settings: SettingsStore
-
     var body: some View {
         ZStack {
             GlassBackdrop(theme: appearance.theme, animated: false)
@@ -494,7 +358,6 @@ struct AppearanceSheetContent: View {
                     typographySection
                     fontSection
                     optionsSection
-                    engineSection
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -606,35 +469,6 @@ struct AppearanceSheetContent: View {
                 Toggle("滚动阅读（不分页）", isOn: $appearance.isScrolling)
                     .font(.system(size: 15))
                     .tint(.accentColor)
-            }
-        }
-    }
-
-    private var engineSection: some View {
-        GlassSection(
-            "引擎",
-            footer: "切换引擎后重新打开本书生效。进度按引擎分别保存。"
-        ) {
-            GlassRow {
-                HStack(spacing: 8) {
-                    Text("阅读引擎")
-                        .font(.system(size: 15))
-                    Spacer(minLength: 0)
-                    Picker("阅读引擎", selection: $settings.engine) {
-                        ForEach(ReaderEngineKind.allCases) { engine in
-                            Text(engine.title).tag(engine)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                }
-            }
-
-            GlassRow(showsDivider: false) {
-                Text(settings.engine.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

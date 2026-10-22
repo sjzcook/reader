@@ -23,11 +23,6 @@ extension FileManager {
         ensure(containerURL.appendingPathComponent("Library/Books", isDirectory: true))
     }
 
-    /// 解压后的书籍：`<container>/Library/Extracted/<id>/`
-    static var extractedURL: URL {
-        ensure(containerURL.appendingPathComponent("Library/Extracted", isDirectory: true))
-    }
-
     /// 封面缓存：`<container>/Library/Covers/<id>.jpg`
     static var coversURL: URL {
         ensure(containerURL.appendingPathComponent("Library/Covers", isDirectory: true))
@@ -56,8 +51,17 @@ extension FileManager {
     static func prepareContainer() {
         _ = libraryIndexURL
         _ = booksURL
-        _ = extractedURL
         _ = coversURL
         _ = inboxURL
+        removeLegacyExtractedBooks()
+    }
+
+    /// 旧版本为了自研引擎会把 EPUB 解压一份到 `Library/Extracted/`，
+    /// 现在阅读统一走 Readium，直接用原始 epub，这份缓存启动时清掉回收空间。
+    static func removeLegacyExtractedBooks() {
+        let legacy = containerURL.appendingPathComponent("Library/Extracted", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
+        try? FileManager.default.removeItem(at: legacy)
+        DebugLog.info("已清理旧版解压缓存")
     }
 }

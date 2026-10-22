@@ -7,10 +7,6 @@ import SwiftUI
 @MainActor
 final class SettingsStore: ObservableObject {
 
-    @Published var engine: ReaderEngineKind {
-        didSet { defaults.set(engine.rawValue, forKey: Keys.engine) }
-    }
-
     @Published var appearance: AppearanceSettings {
         didSet { saveAppearance() }
     }
@@ -26,11 +22,10 @@ final class SettingsStore: ObservableObject {
     }
 
     private let defaults: UserDefaults
-    /// App Group 内共享的 UserDefaults，扩展与主 App 都要能读到引擎设置。
+    /// App Group 内共享的 UserDefaults，扩展与主 App 都要能读到外观等设置。
     private let sharedDefaults: UserDefaults?
 
     private enum Keys {
-        static let engine = "reader.engine"
         static let appearance = "reader.appearance"
         static let openAfterImport = "reader.openAfterImport"
         static let showToast = "reader.showImportToast"
@@ -41,9 +36,6 @@ final class SettingsStore: ObservableObject {
         sharedDefaults = UserDefaults(suiteName: FileManager.appGroupIdentifier)
         let store = sharedDefaults ?? .standard
         defaults = store
-
-        let raw = store.string(forKey: Keys.engine) ?? ReaderEngineKind.readium.rawValue
-        engine = ReaderEngineKind(rawValue: raw) ?? .readium
 
         if let data = store.data(forKey: Keys.appearance),
            let decoded = try? JSONDecoder().decode(AppearanceSettings.self, from: data) {

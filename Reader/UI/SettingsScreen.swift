@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 设置页：阅读引擎切换 + 外观 + 存储管理。整体采用液态玻璃卡片布局。
+/// 设置页：外观、存储与关于。整体采用液态玻璃卡片布局。
 struct SettingsScreen: View {
 
     @EnvironmentObject private var settings: SettingsStore
@@ -16,7 +16,6 @@ struct SettingsScreen: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
-                        engineSection
                         readingSection
                         storageSection
                         aboutSection
@@ -42,29 +41,6 @@ struct SettingsScreen: View {
                 Button("取消", role: .cancel) {}
             } message: {
                 Text("所有书籍文件与阅读进度都会被删除，操作无法撤销。")
-            }
-        }
-    }
-
-    // MARK: - 引擎
-
-    private var engineSection: some View {
-        let engines = ReaderEngineKind.allCases
-        return GlassSection(
-            "阅读引擎",
-            footer: "两套引擎的解析与渲染方式不同，阅读进度分别保存。切换后重新打开书本即可生效。"
-        ) {
-            ForEach(engines.indices, id: \.self) { index in
-                let engine = engines[index]
-                GlassRow(showsDivider: index < engines.count - 1) {
-                    EngineRow(
-                        engine: engine,
-                        isSelected: settings.engine == engine,
-                        onSelect: {
-                            withAnimation(.easeInOut(duration: 0.15)) { settings.engine = engine }
-                        }
-                    )
-                }
             }
         }
     }
@@ -146,7 +122,7 @@ struct SettingsScreen: View {
     private var aboutSection: some View {
         GlassSection(
             "关于",
-            footer: "两者均为 MIT 许可的开源项目，本项目在此基础上实现了书架与阅读界面。"
+            footer: "阅读渲染由 Readium 提供，EPUB 元数据解析与封面提取由 EPUBKit 提供；两者均为开源项目。"
         ) {
             GlassRow {
                 LabeledContent("版本") {
@@ -158,7 +134,7 @@ struct SettingsScreen: View {
             GlassRow {
                 Link(destination: URL(string: "https://github.com/readium/swift-toolkit")!) {
                     HStack(spacing: 8) {
-                        Text("Readium Swift Toolkit")
+                        Text("Readium · 阅读渲染")
                             .font(.system(size: 15))
                             .foregroundStyle(.primary)
                         Spacer(minLength: 0)
@@ -174,7 +150,7 @@ struct SettingsScreen: View {
             GlassRow(showsDivider: false) {
                 Link(destination: URL(string: "https://github.com/witekbobrowski/EPUBKit")!) {
                     HStack(spacing: 8) {
-                        Text("EPUBKit")
+                        Text("EPUBKit · 导入解析")
                             .font(.system(size: 15))
                             .foregroundStyle(.primary)
                         Spacer(minLength: 0)
@@ -198,50 +174,6 @@ struct SettingsScreen: View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
-    }
-}
-
-/// 单个引擎选项，带选中态与说明
-struct EngineRow: View {
-    let engine: ReaderEngineKind
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
-                    .padding(.top, 1)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Text(engine.title)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.primary)
-                        Text(engine.badge)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule().fill((isSelected ? Color.accentColor : Color.secondary).opacity(0.12))
-                            )
-                    }
-                    Text(engine.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(engine.detail)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
