@@ -1,0 +1,303 @@
+name: Build Signed iOS IPA (App Groups)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-signed-ios:
+    # Hosted runner must provide Xcode and macOS.
+    runs-on: xcode-27
+    timeout-minutes: 60
+
+    env:
+      APP_BUNDLE_ID: com.sjzcook.modureader
+      EXTENSION_BUNDLE_ID: com.sjzcook.modureader.share
+      APP_GROUP_ID: group.com.sjzcook.modureader
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcode-select -p
+          ruby --version
+          python3 --version
+
+      - name: Check required signing secrets
+        shell: bash
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_APP_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_APP_PROVISIONING_PROFILE_BASE64 }}
+          IOS_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          for name in IOS_CERTIFICATE_P12_BASE64 IOS_CERTIFICATE_PASSWORD IOS_TEAM_ID IOS_APP_PROVISIONING_PROFILE_BASE64 IOS_EXTENSION_PROVISIONING_PROFILE_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          if [[ ! "$IOS_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::IOS_TEAM_ID must be the 10-character Apple Developer Team ID, not the Apple ID email."
+            exit 1
+          fi
+
+      - name: Install signing certificate and provisioning profiles
+        shell: bash
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_APP_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_APP_PROVISIONING_PROFILE_BASE64 }}
+          IOS_EXTENSION_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_EXTENSION_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles" signing
+          printf '%s' "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > signing/distribution.p12
+          printf '%s' "$IOS_APP_PROVISIONING_PROFILE_BASE64" | base64 --decode > signing/app.mobileprovision
+          printf '%s' "$IOS_EXTENSION_PROVISIONING_PROFILE_BASE64" | base64 --decode > signing/extension.mobileprovision
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/reader-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import signing/distribution.p12 -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "$HOME/Library/Keychains/login.keychain-db"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          IDENTITY_OUTPUT="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          echo "$IDENTITY_OUTPUT"
+          if ! grep -q 'Apple Distribution:' <<< "$IDENTITY_OUTPUT"; then
+            echo "::error::The imported P12 does not contain a usable Apple Distribution signing identity. Ad Hoc installable IPA requires a distribution certificate."
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import os, plistlib, subprocess, sys
+          from pathlib import Path
+
+          team = os.environ["IOS_TEAM_ID"]
+          app_id = os.environ["APP_BUNDLE_ID"]
+          ext_id = os.environ["EXTENSION_BUNDLE_ID"]
+          group_id = os.environ["APP_GROUP_ID"]
+          root = Path("signing")
+
+          profiles = [
+              ("app.mobileprovision", app_id, "APP"),
+              ("extension.mobileprovision", ext_id, "EXT"),
+          ]
+          for filename, bundle_id, prefix in profiles:
+              path = root / filename
+              decoded = subprocess.run(
+                  ["security", "cms", "-D", "-i", str(path)],
+                  check=True, capture_output=True
+              ).stdout
+              data = plistlib.loads(decoded)
+              ent = data.get("Entitlements", {})
+              profile_team = data.get("TeamIdentifier", [])
+              app_identifier = ent.get("application-identifier", "")
+              groups = ent.get("com.apple.security.application-groups", [])
+              devices = data.get("ProvisionedDevices", [])
+              all_devices = data.get("ProvisionsAllDevices", False)
+              if team not in profile_team:
+                  sys.exit(f"::error::{filename}: TeamIdentifier {profile_team!r} does not include IOS_TEAM_ID.")
+              if not app_identifier.endswith("." + bundle_id):
+                  sys.exit(f"::error::{filename}: application-identifier {app_identifier!r} does not match {bundle_id}.")
+              if group_id not in groups:
+                  sys.exit(f"::error::{filename}: profile does not authorize App Group {group_id}. Register/assign the group and regenerate this profile.")
+              if ent.get("get-task-allow", False):
+                  sys.exit(f"::error::{filename}: development profile detected. This workflow requires an Ad Hoc distribution profile.")
+              if not devices and not all_devices:
+                  sys.exit(f"::error::{filename}: no ProvisionedDevices; this does not look like an Ad Hoc profile suitable for direct device installation.")
+              (root / (prefix.lower() + "-decoded.plist")).write_bytes(decoded)
+              with open(os.environ["GITHUB_ENV"], "a") as env:
+                  env.write(f"{prefix}_PROFILE_UUID={data['UUID']}\n")
+                  env.write(f"{prefix}_PROFILE_NAME={data['Name']}\n")
+              print(f"{filename}: profile={data.get('Name')!r}, UUID={data.get('UUID')}, bundle={bundle_id}, App Group authorized")
+          PY
+
+          cp signing/app.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$(/usr/libexec/PlistBuddy -c 'Print UUID' signing/app-decoded.plist).mobileprovision"
+          cp signing/extension.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$(/usr/libexec/PlistBuddy -c 'Print UUID' signing/extension-decoded.plist).mobileprovision"
+          rm -f signing/distribution.p12
+
+      - name: Install XcodeGen and project editor
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+          gem install xcodeproj --no-document
+          xcodegen --version
+
+      - name: Generate project and configure target-specific signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          ruby <<'RUBY'
+          require "xcodeproj"
+          project = Xcodeproj::Project.open("Reader.xcodeproj")
+          expected = {
+            "Reader" => ENV.fetch("APP_PROFILE_UUID"),
+            "ShareExtension" => ENV.fetch("EXT_PROFILE_UUID")
+          }
+          expected.each do |target_name, profile_uuid|
+            target = project.targets.find { |item| item.name == target_name }
+            abort("Missing Xcode target: #{target_name}") unless target
+            target.build_configurations.each do |config|
+              settings = config.build_settings
+              settings["CODE_SIGN_STYLE"] = "Manual"
+              settings["DEVELOPMENT_TEAM"] = ENV.fetch("IOS_TEAM_ID")
+              settings["CODE_SIGN_IDENTITY"] = "Apple Distribution"
+              settings["PROVISIONING_PROFILE_SPECIFIER"] = profile_uuid
+              settings["CODE_SIGNING_ALLOWED"] = "YES"
+              settings["CODE_SIGNING_REQUIRED"] = "YES"
+            end
+          end
+          project.save
+          puts "Configured manual signing: Reader=#{expected['Reader']}, ShareExtension=#{expected['ShareExtension']}"
+          RUBY
+          xcodebuild -list -project Reader.xcodeproj
+
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -resolvePackageDependencies -project Reader.xcodeproj -scheme Reader 2>&1 | tee resolve-packages.log
+
+      - name: Archive signed app
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p dist/ios
+          xcodebuild archive \
+            -project Reader.xcodeproj \
+            -scheme Reader \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/ModuReader.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
+            2>&1 | tee dist/ios/archive.log
+
+      - name: Export Ad Hoc signed IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>ad-hoc</string>
+            <key>teamID</key><string>$IOS_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$APP_BUNDLE_ID</key><string>$APP_PROFILE_NAME</string>
+              <key>$EXTENSION_BUNDLE_ID</key><string>$EXT_PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/ModuReader.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            2>&1 | tee dist/ios/export.log
+
+          IPA_PATH="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          if [[ -z "$IPA_PATH" || ! -s "$IPA_PATH" ]]; then
+            echo "::error::Xcode did not produce an IPA."
+            exit 1
+          fi
+          cp "$IPA_PATH" dist/ios/ModuReader-signed-adhoc.ipa
+
+      - name: Verify signed IPA and App Group authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ipa-check"
+          /usr/bin/ditto -x -k dist/ios/ModuReader-signed-adhoc.ipa "$RUNNER_TEMP/ipa-check"
+          APP="$RUNNER_TEMP/ipa-check/Payload/ModuReader.app"
+          EXT="$APP/PlugIns/ModuShare.appex"
+          test -d "$APP" || { echo "::error::Main app missing from IPA"; exit 1; }
+          test -d "$EXT" || { echo "::error::Share extension missing from IPA"; exit 1; }
+
+          codesign --verify --strict --verbose=2 "$APP"
+          codesign --verify --strict --verbose=2 "$EXT"
+          codesign -dv --verbose=4 "$APP" 2> dist/ios/app-signature.txt
+          codesign -dv --verbose=4 "$EXT" 2> dist/ios/extension-signature.txt
+          grep -q "TeamIdentifier=$IOS_TEAM_ID" dist/ios/app-signature.txt
+          grep -q "TeamIdentifier=$IOS_TEAM_ID" dist/ios/extension-signature.txt
+
+          codesign -d --entitlements :- "$APP" > "$RUNNER_TEMP/app-entitlements.plist" 2>/dev/null
+          codesign -d --entitlements :- "$EXT" > "$RUNNER_TEMP/extension-entitlements.plist" 2>/dev/null
+          python3 - <<'PY'
+          import os, plistlib, sys
+          from pathlib import Path
+          group = os.environ["APP_GROUP_ID"]
+          for path in (Path(os.environ["RUNNER_TEMP"]) / "app-entitlements.plist",
+                       Path(os.environ["RUNNER_TEMP"]) / "extension-entitlements.plist"):
+              try:
+                  ent = plistlib.loads(path.read_bytes())
+              except Exception as exc:
+                  sys.exit(f"::error::Cannot parse signed entitlements at {path}: {exc}")
+              groups = ent.get("com.apple.security.application-groups", [])
+              if group not in groups:
+                  sys.exit(f"::error::Signed binary {path.name} does not contain App Group {group}.")
+              print(f"PASS: {path.name} contains authorized App Group {group}")
+          PY
+
+          echo "## Signed iOS IPA validation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- IPA exists and contains the app plus ShareExtension." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Both code signatures verify and use Team ID $IOS_TEAM_ID." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Both signed entitlements contain $APP_GROUP_ID." >> "$GITHUB_STEP_SUMMARY"
+          echo "- This validates packaging and entitlement consistency; final shared-container access must still be tested on a physical device." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signed IPA and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ModuReader-signed-adhoc-ipa-${{ github.run_number }}
+          path: |
+            dist/ios/ModuReader-signed-adhoc.ipa
+            dist/ios/archive.log
+            dist/ios/export.log
+            dist/ios/app-signature.txt
+            dist/ios/extension-signature.txt
+            resolve-packages.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean up temporary keychain
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
