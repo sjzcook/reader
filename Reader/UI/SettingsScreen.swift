@@ -83,10 +83,7 @@ struct SettingsScreen: View {
     // MARK: - 存储
 
     private var storageSection: some View {
-        GlassSection(
-            "存储",
-            footer: "书籍保存在 App 的共享容器里，可在「文件」App → 我的 iPhone → 墨读 中查看。"
-        ) {
+        GlassSection("存储", footer: storageFooter) {
             GlassRow {
                 LabeledContent("书籍数量") {
                     Text("\(library.books.count) 本").foregroundStyle(.secondary)
@@ -97,6 +94,19 @@ struct SettingsScreen: View {
             GlassRow {
                 LabeledContent("占用空间") {
                     Text(formattedSize).foregroundStyle(.secondary)
+                }
+                .font(.system(size: 15))
+            }
+
+            GlassRow {
+                LabeledContent("分享导入") {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(sharedContainerAvailable ? Color.green : Color.orange)
+                            .frame(width: 7, height: 7)
+                        Text(sharedContainerAvailable ? "可用" : "不可用")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .font(.system(size: 15))
             }
@@ -115,6 +125,19 @@ struct SettingsScreen: View {
                 .disabled(library.books.isEmpty)
             }
         }
+    }
+
+    private var sharedContainerAvailable: Bool {
+        FileManager.isSharedContainerAvailable
+    }
+
+    /// 「分享导入」依赖 App Group，未签名/自签名重签的包拿不到，
+    /// 与其让用户在分享面板里撞错误提示，不如在这里说清楚。
+    private var storageFooter: String {
+        if sharedContainerAvailable {
+            return "书籍保存在 App Group 共享容器里，「文件」App → 我的 iPhone → 墨读 可查看；系统分享面板中的「导入到墨读」可用。"
+        }
+        return "这个安装包没有 App Group 权限（未签名 / 自签名重签常见），分享面板的「导入到墨读」不可用。导入请用书架右上角「+」，或在「文件」App 里长按 EPUB → 共享 → 用其他应用打开 → 墨读。"
     }
 
     // MARK: - 关于

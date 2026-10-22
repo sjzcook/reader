@@ -95,8 +95,11 @@ final class ShareViewController: UIViewController {
             finish(with: .failure("没有收到文件"))
             return
         }
-        guard InboxStore.containerURL != nil else {
-            finish(with: .failure("无法访问共享空间\n请检查 App Group 配置"))
+        // App Group 是扩展和主 App 之间唯一能传文件的通道。
+        // 未签名包 / 自签名重签都会丢掉这项权限，这时只能引导用户换一条入口。
+        guard InboxStore.isAvailable else {
+            ShareLog.info("App Group 不可用：\(AppGroup.identifier)")
+            finish(with: .noSharedContainer)
             return
         }
 
@@ -178,6 +181,8 @@ final class ShareViewController: UIViewController {
     private enum Outcome {
         case success(Int, skipped: Int)
         case failure(String)
+        /// 拿不到 App Group 共享容器（安装包被重签时最容易丢这项权限）
+        case noSharedContainer
     }
 
     private func finish(with outcome: Outcome) {
@@ -195,6 +200,20 @@ final class ShareViewController: UIViewController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
                 self?.close()
             }
+        case .noSharedContainer:
+            iconView.image = UIImage(systemName: "arrow.up.doc")
+            iconView.tintColor = .systemOrange
+            titleLabel.text = "换个入口导入"
+            // 不要自动关闭：这几行是用户唯一能看到的说明，得留时间读
+            detailLabel.text = """
+            当前安装包没有 App Group 权限，分享扩展没法把文件交给墨读。
+            未签名 / 自签名重签的包都会这样。
+
+            请改用下面任一方式：
+            1 · 「文件」App 里长按 EPUB → 共享 → 「用其他应用打开」→ 墨读
+            2 · 在墨读书架点右上角「+」选择这个文件
+            """
+            doneButton.isHidden = false
         case .failure(let message):
             iconView.image = UIImage(systemName: "exclamationmark.triangle.fill")
             iconView.tintColor = .systemOrange
@@ -218,6 +237,15 @@ enum AppGroup {
     static let identifier = "group.com.sjzcook.modureader"
 }
 
+/// 扩展进程里没有主 App 的 DebugLog，单独留一个极小的日志出口。
+enum ShareLog {
+    static func info(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        print("[ModuShare] ℹ️", message())
+        #endif
+    }
+}
+
 enum ShareExtensionError: LocalizedError {
     case unsupported
     case unreadable
@@ -228,7 +256,7 @@ enum ShareExtensionError: LocalizedError {
         switch self {
         case .unsupported: return "不支持这种文件类型"
         case .unreadable: return "读取文件失败"
-        case .storageUnavailable: return "无法访问共享空间"
+        case .storageUnavailable: return "拿不到 App Group 共享空间"
         case .copyFailed: return "复制失败，可能是存储空间不足"
         }
     }
@@ -240,6 +268,9 @@ enum InboxStore {
     static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier)
     }
+
+    /// 共享空间是否可用。拿不到就说明这个安装包没有 App Group 授权。
+    static var isAvailable: Bool { containerURL != nil }
 
     static var libraryURL: URL {
         (containerURL ?? FileManager.default.temporaryDirectory)

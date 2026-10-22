@@ -11,6 +11,10 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var books: [Book] = []
     @Published var lastError: String?
 
+    /// 从外部导入成功后，想让书架自动打开这本书（「用其他应用打开」进来时用）。
+    /// 书架消费后置回 nil。
+    @Published var autoOpenBookID: UUID?
+
     private let queue = DispatchQueue(label: "com.example.reader.library", qos: .userInitiated)
 
     init() {

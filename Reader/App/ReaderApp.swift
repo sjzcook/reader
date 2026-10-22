@@ -70,6 +70,8 @@ struct ReaderApp: App {
             let result = try await ImportService.shared.importStagedFile(at: stagedURL, into: library)
             if result.wasDuplicate {
                 DebugLog.info("书库中已有：\(result.book.title)")
+            } else if settings.openAfterImport {
+                library.autoOpenBookID = result.book.id
             }
         } catch {
             library.lastError = error.localizedDescription

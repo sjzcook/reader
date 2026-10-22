@@ -142,6 +142,23 @@ EPUBKit 仍然留在依赖里，但只在导入链路兜底（Readium 读不出�
 2. 主 App 启动 / 回前台时扫描 Inbox：逐个解析、生成封面、搬进正式书库，然后删除收件文件。
 3. 解析失败的文件保留 7 天后清理，避免丢书。
 
+### ⚠️ 分享扩展依赖 App Group 授权
+
+扩展和主 App 是两个进程、两个沙盒，**App Group 是它们之间唯一能传文件的通道**。
+没有它，扩展写不进主 App 的书库，也不可能绕开：
+
+- 未签名 IPA（CI 用 `CODE_SIGNING_ALLOWED=NO` 出包）+ 自签名重签，会丢掉
+  `com.apple.security.application-groups` 权限，`containerURL(...)` 返回 `nil`；
+- 想让分享导入真正可用，必须在开发者账号里注册 App Group `group.com.sjzcook.modureader`，
+  并让**主 App 与扩展**都用包含该 group 的 provisioning profile 签名；
+- 拿不到权限时代码会优雅降级：分享扩展直接提示改走下面两条路，设置页「存储 → 分享导入」
+  会显示「不可用」，主 App 仍能正常用（书库退回沙盒 `Documents`）。
+  可用入口：书架右上角「+」；或在「文件」App 里长按 EPUB → 共享 → 用其他应用打开 → 墨读。
+
+> 书库位置会随签名方式变化（有 App Group 在共享容器，没有则在沙盒 `Documents`）。
+> `FileManager.migrateLegacyLibraryIfNeeded()` 会在启动时把旧位置的 `Library/` 复制过去，
+> 避免换签名后书架突然变空。
+
 ## 已知限制
 
 - **代码尚未在真机/模拟器上编译过**（作者开发机为 Windows，无 Swift 工具链）。

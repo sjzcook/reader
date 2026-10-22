@@ -146,6 +146,12 @@ struct LibraryScreen: View {
                     flash("已从分享导入 \(pending) 本书")
                 }
             }
+            .onChange(of: library.autoOpenBookID) { id in
+                // 外部 App 递文件进来后自动打开（分享导入不可用时的主入口）
+                guard let id, let book = library.book(id: id) else { return }
+                library.autoOpenBookID = nil
+                openedBook = book
+            }
         }
     }
 
