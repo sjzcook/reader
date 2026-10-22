@@ -44,20 +44,30 @@ struct ReaderApp: App {
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
             if let value = components?.queryItems?.first(where: { $0.name == "path" })?.value,
                let fileURL = URL(string: value) {
-                Task { await importExternal(fileURL) }
+                stageThenImport(fileURL)
             }
             return
         }
 
         // 系统「用其他应用打开」递过来的文件
         if url.isFileURL, url.pathExtension.lowercased() == "epub" {
-            Task { await importExternal(url) }
+            stageThenImport(url)
         }
     }
 
-    private func importExternal(_ fileURL: URL) async {
+    /// 外部文件 URL 的授权只在回调期间有效，先同步复制到 Inbox，再慢慢入库。
+    private func stageThenImport(_ fileURL: URL) {
         do {
-            let result = try await ImportService.shared.importFromExternalURL(fileURL, into: library)
+            let staged = try ImportService.shared.stage(fileURL)
+            Task { await importExternal(staged) }
+        } catch {
+            library.lastError = error.localizedDescription
+        }
+    }
+
+    private func importExternal(_ stagedURL: URL) async {
+        do {
+            let result = try await ImportService.shared.importStagedFile(at: stagedURL, into: library)
             if result.wasDuplicate {
                 DebugLog.info("书库中已有：\(result.book.title)")
             }

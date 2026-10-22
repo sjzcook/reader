@@ -1,12 +1,17 @@
 # 墨读 ModuReader
 
 一款用 Swift 编写的 iOS EPUB 阅读器（仅 iPhone）。**阅读渲染统一使用 Readium**，
-EPUBKit 只负责导入时的解析：
+导入时的元数据解析也优先走 Readium，EPUBKit 只做兜底：
 
 | 用途 | 依赖 | 说明 |
 |---|---|---|
 | 阅读渲染 | [readium/swift-toolkit](https://github.com/readium/swift-toolkit) `3.11.1`（~560★，BSD-3） | 分页、字体、主题、目录、阅读位置全由 Readium 的 `EPUBNavigatorViewController` 承担 |
-| 导入解析 | [witekbobrowski/EPUBKit](https://github.com/witekbobrowski/EPUBKit) `1.x`（~320★，MIT） | 只读 OPF/NCX 元数据与封面，不参与阅读渲染 |
+| 导入解析 | 同上（`PublicationOpener`） + [witekbobrowski/EPUBKit](https://github.com/witekbobrowski/EPUBKit) `0.4.0`（~320★，MIT） | 元数据/封面优先用 Readium（与阅读同源），EPUBKit 仅作兜底 |
+
+> 导入的原则是**先落盘、后解析**：文件复制进书库就算导入成功，
+> 元数据读不出来只影响书名和封面，绝不让「解析失败」挡住这本书。
+> 早期版本要求 EPUBKit 解析必须先成功，而它要求 `spine@toc` 且能找到 NCX/NAV，
+> 大量正常 EPUB 3 会解析失败，表现就是「选了文件却打不开」。
 
 ## 功能
 
@@ -118,7 +123,17 @@ ShareExtension/
   （旧版本留下的目录会在启动时自动清理）；
 - 代价是二进制略大，排版自由度受 Readium CSS 约束。
 
-EPUBKit 仍然留在依赖里，但只在导入链路使用（读元数据、抽封面），不再参与阅读。
+EPUBKit 仍然留在依赖里，但只在导入链路兜底（Readium 读不出元数据时才用），不再参与阅读。
+
+## 导入链路（先落盘、后解析）
+
+三条入口（书架「添加」、分享扩展的 Inbox、其它 App 打开）最后都汇到 `ImportService.importFile`：
+
+1. **复制进书库**：`startAccessingSecurityScopedResource` → `NSFileCoordinator` 协调读取 →
+   直接复制 → `Data` 读写，三层降级；成功即视为导入成功。
+2. **读元数据**：优先 `PublicationOpener`（与阅读同一套解析器），失败回退 EPUBKit，
+   再失败就用文件名当书名。**解析失败不再中断导入。**
+3. **去重 + 入库 + 封面**，失败原因通过常驻弹窗展示（不再用 2 秒 toast）。
 
 ## 分享导入的流转
 

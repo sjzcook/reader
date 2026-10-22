@@ -210,7 +210,9 @@ struct LibraryScreen: View {
     private func handlePicked(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            flash("选择文件失败：\(error.localizedDescription)")
+            // 用常驻弹窗而不是 toast：早前用 2 秒 toast，报错一闪而过，
+            // 用户只会觉得「选了文件没反应」。
+            library.lastError = "选择文件失败：\(error.localizedDescription)"
         case .success(let urls):
             guard !urls.isEmpty else { return }
             Task { await importAll(urls, using: ImportService.shared) }
@@ -240,10 +242,15 @@ struct LibraryScreen: View {
         } else if duplicates > 0 {
             flash("这些书已在书库中")
         }
-        if let message = failures.first {
-            flash(message)
+        if !failures.isEmpty {
+            library.lastError = failures.count == 1
+                ? failures[0]
+                : "有 \(failures.count) 本书没能导入：\n" + failures.joined(separator: "\n")
         }
-        if settings.openAfterImport, let book = lastImported, urls.count == 1 {
+        if settings.openAfterImport, let book = lastImported, urls.count == 1, failures.isEmpty {
+            // 文件选择器还在做消失动画时立刻 present 全屏视图会被系统丢掉，
+            // 表现就是「选完文件什么都没发生」，等一帧再打开。
+            try? await Task.sleep(nanoseconds: 400_000_000)
             openedBook = book
         }
     }
