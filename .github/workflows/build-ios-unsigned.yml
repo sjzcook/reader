@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   build-ios:
-    runs-on: macos-15
+    # Xcode 27 image runs on Apple Silicon (arm64) with macOS 27.
+    runs-on: xcode-27
     timeout-minutes: 60
 
     steps:
@@ -106,6 +107,7 @@ jobs:
             echo
             echo "- Repository: ${{ github.repository }}"
             echo "- Commit: ${{ github.sha }}"
+            echo "- Xcode: $(xcodebuild -version | head -1)"
             echo "- Scheme: Reader"
             echo "- Signing: disabled (CODE_SIGNING_ALLOWED=NO)"
             echo
